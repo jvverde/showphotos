@@ -1,0 +1,78 @@
+            :root {
+                --popup-bg: white;
+                --popup-border: 1px solid black;
+                --popup-shadow: 2px 2px 10px rgba(0, 0, 0, 0.5);
+                --highlight-bg: yellow;
+                --button-bg: rgba(0, 0, 0, 0.5);
+                --button-hover-bg: rgba(0, 0, 0, 0.8);
+            }
+
+            .bird-popup {
+                position: absolute;
+                z-index: 10000;
+                background: var(--popup-bg);
+                border: var(--popup-border);
+                padding: 10px;
+                box-shadow: var(--popup-shadow);
+                max-width: 900px;
+                display: none;
+                text-align: center;
+                transition: opacity 0.3s ease;
+                resize: both;
+                overflow: auto;
+            }
+
+            .bird-popup img {
+                max-width: 100%;
+                height: auto;
+                display: block;
+                margin: auto;
+            }
+
+            .bird-highlight {
+                background-color: var(--highlight-bg);
+                cursor: pointer;
+            }
+
+            .bird-popup .nav-button {
+                position: absolute;
+                top: 50%;
+                transform: translateY(-50%);
+                font-size: 24px;
+                background: var(--button-bg);
+                color: white;
+                border: none;
+                padding: 10px;
+                cursor: pointer;
+                user-select: none;
+            }
+
+            .bird-popup .nav-button:hover {
+                background: var(--button-hover-bg);
+            }
+
+            #prev-button { left: 10px; }
+            #next-button { right: 10px; }
+
+            .dismiss-button {
+                display: block;
+                margin: 10px auto;
+                padding: 5px 10px;
+                background-color: red;
+                color: white;
+                cursor: pointer;
+                border: none;
+                border-radius: 5px;
+            }
+
+            .loading-indicator {
+                font-size: 18px;
+                color: #333;
+                padding: 20px;
+            }
+
+            .photo-info {
+                margin: 10px 0;
+                font-size: 14px;
+                color: #555;
+            }
