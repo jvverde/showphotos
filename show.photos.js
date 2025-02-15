@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bird Species Image Preview
 // @namespace    http://tampermonkey.net/
-// @version      3.1.3
+// @version      3.1.4
 // @description  Show Flickr images when hovering over bird species names (IOC nomenclature) on a webpage.
 // @author       Isidro Vila Verde
 // @match        *://*/*
@@ -9,6 +9,7 @@
 // @grant        GM_addStyle
 // @grant        GM_setValue
 // @grant        GM_getValue
+// @grant        GM_registerMenuCommand
 // @connect      api.flickr.com
 // @connect      api.github.com
 // @connect      flickr.com
@@ -16,7 +17,7 @@
 // @run-at       document-end
 // ==/UserScript==
 
-(function () {
+(async function () {
     'use strict';
 
     // Generate a random postfix for IDs to avoid conflicts
@@ -224,7 +225,6 @@
             resumeObserver();
         }
 
-        add_style();
         findSpeciesInText(document.body);
 
         observer = new MutationObserver((mutations) => {
@@ -585,6 +585,13 @@
         }
     });
 
-    initializeScript();
+    await initializeScript();
     processSpecies();
+    add_style();
+
+    GM_registerMenuCommand("Clear Species List", function () {
+        GM_setValue('speciesList', []);
+        alert("Species list cleared.");
+    });
+
 })();
