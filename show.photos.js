@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bird Species Image Preview
 // @namespace    http://tampermonkey.net/
-// @version      3.1.4
+// @version      3.1.5
 // @description  Show Flickr images when hovering over bird species names (IOC nomenclature) on a webpage.
 // @author       Isidro Vila Verde
 // @match        *://*/*
@@ -25,7 +25,7 @@
 
     // Constants and Configurations
     const FLICKR_API_KEY = 'c161f42fac23abc42328d8abd9f14fc5';
-    const GISTID = '70598ae6bef6da21ade780c12d907452';
+    const GISTID = ['70598ae6bef6da21ade780c12d907452','d31217a5c802d1018893907df29d1d45'];
     const API_CALL_DELAY = 300; // 300 milliseconds delay between API calls
     const DEBOUNCE_DELAY = 300; // Debounce delay for mouseover events
     let speciesList = GM_getValue('speciesList', []);
@@ -45,19 +45,28 @@
     // Initialize the script
     async function initializeScript() {
         console.log('Initializing script.');
-        // Try to load speciesList from a GitHub Gist
+        
+        // Try to load speciesList from GitHub Gists
         if (speciesList.length === 0) {
-            const gistUrl = `https://api.github.com/gists/${GISTID}`;
-            try {
-                const gistData = await gmFetch(gistUrl); // Reuse gmFetch function
-                speciesList = loadAndMergeSpeciesLists(gistData); // Load, merge, sort, and deduplicate
-                console.log(`Species list loaded and processed ${speciesList.length} unique names`);
+            let mergedSpeciesList = [];
 
-                // Cache the speciesList
-                GM_setValue('speciesList', speciesList);
-            } catch (error) {
-                console.warn('Failed to load or process species list:', error);
+            for (const gistId of GISTID) { // Iterate over multiple Gist IDs
+                const gistUrl = `https://api.github.com/gists/${gistId}`;
+                try {
+                    const gistData = await gmFetch(gistUrl); // Reuse gmFetch function
+                    const speciesSubset = loadAndMergeSpeciesLists(gistData); // Load, merge, sort, and deduplicate
+                    mergedSpeciesList.push(...speciesSubset);
+                } catch (error) {
+                    console.warn(`Failed to load or process species list from Gist ${gistId}:`, error);
+                }
             }
+
+            // Remove duplicates and sort
+            speciesList = [...new Set(mergedSpeciesList)].sort((a, b) => a.localeCompare(b));
+            console.log(`Species list loaded and processed: ${speciesList.length} unique names`);
+
+            // Cache the speciesList
+            GM_setValue('speciesList', speciesList);
         }
     }
 
@@ -83,12 +92,9 @@
             }
         }
 
-        // Sort and remove duplicates
-        const uniqueSortedList = [...new Set(mergedList)].sort((a, b) => a.localeCompare(b));
-        console.log(`Loaded a list of ${uniqueSortedList.length} names`);
-
-        return uniqueSortedList;
+        return mergedList;
     }
+
 
     // Add style for add-on
     function add_style() {
@@ -591,7 +597,7 @@
 
     GM_registerMenuCommand("Clear Species List", function () {
         GM_setValue('speciesList', []);
-        alert("Species list cleared.");
+        alert("Species list cleared. You should reload the page now");
     });
 
 })();
