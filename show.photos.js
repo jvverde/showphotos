@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bird Species Image Preview
 // @namespace    http://tampermonkey.net/
-// @version      3.1.1
+// @version      3.1.2
 // @description  Show Flickr images when hovering over bird species names (IOC nomenclature) on a webpage.
 // @author       Isidro Vila Verde
 // @match        *://*/*
@@ -20,7 +20,8 @@
     'use strict';
 
     // Constants and Configurations
-    const FLICKR_API_KEY = GM_getValue('flickrApiKey', 'c161f42fac23abc42328d8abd9f14fc5');
+    const FLICKR_API_KEY = 'c161f42fac23abc42328d8abd9f14fc5';
+    const GISTID = '70598ae6bef6da21ade780c12d907452';
     const API_CALL_DELAY = 300; // 300 milliseconds delay between API calls
     const DEBOUNCE_DELAY = 300; // Debounce delay for mouseover events
     let speciesList = GM_getValue('speciesList', []);
@@ -35,169 +36,25 @@
     let cursorPosition = { x: 0, y: 0 };
     let isKeydownListenerAdded = false;
 
-    console.log('Script initialized.');
+    console.log('Script loaded.');
 
     // Initialize the script
-    initializeScript();
+    async function initializeScript() {
+        console.log('Initializing script.');
+        // Try to load speciesList from a GitHub Gist
+        if (speciesList.length === 0) {
+            const gistUrl = `https://api.github.com/gists/${GISTID}`;
+            try {
+                const gistData = await gmFetch(gistUrl); // Reuse gmFetch function
+                speciesList = loadAndMergeSpeciesLists(gistData); // Load, merge, sort, and deduplicate
+                console.log(`Species list loaded and processed ${speciesList.length} unique names`);
 
-    // --- Helper Functions ---
-
-    // Create a container for the buttons
-    function createButtonContainer() {
-        console.log('Creating button container.');
-        const buttonContainer = document.createElement('div');
-        buttonContainer.id = 'button-container';
-        buttonContainer.style.position = 'fixed';
-        buttonContainer.style.bottom = '10px';
-        buttonContainer.style.left = '50%';
-        buttonContainer.style.transform = 'translateX(-50%)';
-        buttonContainer.style.zIndex = '10000';
-        buttonContainer.style.display = 'flex';
-        buttonContainer.style.gap = '10px';
-        buttonContainer.style.alignItems = 'center';
-        document.body.appendChild(buttonContainer);
-        return buttonContainer;
-    }
-
-    // Create settings icon/button
-    function createSettingsButton(container) {
-        console.log('Creating settings button.');
-        const settingsButton = document.createElement('button');
-        settingsButton.textContent = '⚙️';
-        settingsButton.style.backgroundColor = 'transparent';
-        settingsButton.style.border = 'none';
-        settingsButton.style.cursor = 'pointer';
-        settingsButton.style.fontSize = '24px';
-        settingsButton.addEventListener('click', showSettingsDialog);
-        container.appendChild(settingsButton);
-    }
-
-    // Create run icon/button
-    function createRunButton(container) {
-        console.log('Creating run button.');
-        const runButton = document.createElement('button');
-        runButton.id = 'run-button';
-        runButton.innerHTML = '&#9658;';
-        runButton.style.backgroundColor = 'transparent';
-        runButton.style.border = 'none';
-        runButton.style.cursor = 'pointer';
-        runButton.style.color = 'black';
-        runButton.style.padding = '0';
-        runButton.style.display = 'flex';
-        runButton.style.alignItems = 'center';
-        runButton.style.justifyContent = 'center';
-        runButton.addEventListener('click', () => {
-            // Remove container
-            container.remove() 
-            // Run processSpecies
-            processSpecies();
-        });
-        container.appendChild(runButton);
-    }
-
-    // Show settings dialog
-    function showSettingsDialog() {
-        console.log('Showing settings dialog.');
-        const dialog = document.createElement('div');
-        dialog.id = 'settings-dialog';
-        dialog.style.position = 'fixed';
-        dialog.style.top = '50%';
-        dialog.style.left = '50%';
-        dialog.style.transform = 'translate(-50%, -50%)';
-        dialog.style.backgroundColor = 'white';
-        dialog.style.border = '1px solid black';
-        dialog.style.borderRadius = '10px';        
-        dialog.style.padding = '20px';
-        dialog.style.zIndex = '10001';
-        dialog.style.boxShadow = '2px 2px 10px rgba(0, 0, 0, 0.5)';
-
-        dialog.innerHTML = `
-            <h3>Settings</h3>
-            <label for="api-key-input">Flickr API Key:</label>
-            <input type="text" id="api-key-input" value="${FLICKR_API_KEY}" placeholder="Enter Flickr API Key" />
-            <button id="update-api-key">Update API Key</button>
-            <button id="clear-api-key">Clear API Key</button>
-            <br><br>
-            <label for="species-list-file">Upload Species List (JSON):</label>
-            <input type="file" id="species-list-file" accept=".json" />
-            <button id="clear-species-list">Clear Species List</button>
-            <br><br>
-            <button id="close-settings-dialog">Close</button>
-        `;
-
-        document.body.appendChild(dialog);   
-
-        // Add event listeners for dialog buttons
-        document.getElementById('update-api-key').addEventListener('click', updateApiKey);
-        document.getElementById('clear-api-key').addEventListener('click', clearApiKey);
-        document.getElementById('species-list-file').addEventListener('change', handleFileSelect);
-        document.getElementById('clear-species-list').addEventListener('click', clearSpeciesList);
-        document.getElementById('close-settings-dialog').addEventListener('click', () => {
-            console.log('Closing settings dialog.');
-            document.body.removeChild(dialog);
-        });
-    }
-
-    // Update API key
-    function updateApiKey() {
-        const apiKeyInput = document.getElementById('api-key-input');
-        const newApiKey = apiKeyInput.value.trim();
-        if (newApiKey) {
-            GM_setValue('flickrApiKey', newApiKey);
-            console.log('API Key updated.');
-            alert('API Key updated!');
-        } else {
-            console.warn('API Key cannot be empty.');
-            alert('API Key cannot be empty!');
+                // Cache the speciesList
+                GM_setValue('speciesList', speciesList);
+            } catch (error) {
+                console.warn('Failed to load or process species list:', error);
+            }
         }
-    }
-
-    // Clear API key
-    function clearApiKey() {
-        GM_setValue('flickrApiKey', '');
-        console.log('API Key cleared.');
-        alert('API Key cleared!');
-    }
-
-    // Handle file selection and load species list
-    function handleFileSelect(event) {
-        const file = event.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = function (e) {
-                try {
-                    const newSpeciesList = JSON.parse(e.target.result);
-                    if (validateSpeciesList(newSpeciesList)) {
-                        GM_setValue('speciesList', newSpeciesList);
-                        console.log('Species list loaded successfully.');
-                        alert('Species list loaded successfully!');
-                    } else {
-                        console.warn('Invalid species list format.');
-                        alert('Invalid species list format!');
-                    }
-                } catch (error) {
-                    console.error('Error parsing species list:', error);
-                    alert('Error parsing species list!');
-                }
-            };
-            reader.readAsText(file);
-        }
-    }
-
-    // Clear species list
-    function clearSpeciesList() {
-        GM_setValue('speciesList', []);
-        console.log('Species list cleared.');
-        alert('Species list cleared!');
-    }
-
-    // Validate species list
-    function validateSpeciesList(list) {
-        const isValid = Array.isArray(list) && list.every(item => typeof item === 'string');
-        if (!isValid) {
-            console.warn('Species list validation failed.');
-        }
-        return isValid;
     }
 
     // Function to load, merge, sort, and deduplicate species lists from Gist files
@@ -227,40 +84,6 @@
         console.log(`Loaded a list of ${uniqueSortedList.length} names`);
 
         return uniqueSortedList;
-    }
-
-    // Initialize the script
-    async function initializeScript() {
-        console.log('Initializing script.');
-        // Try to load speciesList from a GitHub Gist
-        if (speciesList.length === 0) {
-            const gistUrl = 'https://api.github.com/gists/70598ae6bef6da21ade780c12d907452'; // Replace with your Gist ID
-            try {
-                const gistData = await gmFetch(gistUrl); // Reuse gmFetch function
-                speciesList = loadAndMergeSpeciesLists(gistData); // Load, merge, sort, and deduplicate
-                console.log(`Species list loaded and processed ${speciesList.length} unique names`);
-
-                // Cache the speciesList
-                GM_setValue('speciesList', speciesList);
-            } catch (error) {
-                console.warn('Failed to load or process species list:', error);
-            }
-        }
-        if (!FLICKR_API_KEY || speciesList.length === 0) {
-            console.warn('API Key or species list missing. Showing settings dialog.');
-            showSettingsDialog();
-        }
-
-        const buttonContainer = createButtonContainer();
-        createSettingsButton(buttonContainer);
-        createRunButton(buttonContainer);
-
-        GM_addStyle(`
-            @keyframes spin {
-                0% { transform: rotate(0deg); }
-                100% { transform: rotate(360deg); }
-            }
-        `);
     }
 
     // Add style for add-on
@@ -566,9 +389,9 @@
 
         pauseObserver();
         popup.innerHTML = `
-            <button class="nav-button" id="prev-button">⮜</button>
+            <button class="nav-button" id="prev-button">&lsaquo;</button>
             <img src="${currentImages[currentIndex].url}" alt="Bird Image" />
-            <button class="nav-button" id="next-button">⮞</button>
+            <button class="nav-button" id="next-button">&rsaquo;</button>
             <div class="photo-info">
                 <strong>${currentImages[currentIndex].title}</strong> by ${currentImages[currentIndex].author || "Loading author..."}
             </div>
@@ -820,4 +643,7 @@
             debouncedHighlight(e);
         }
     });
+
+    initializeScript();
+    processSpecies();
 })();
