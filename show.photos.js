@@ -3,7 +3,7 @@
 // @namespace    http://tampermonkey.net/
 // @version      3.1
 // @description  Show Flickr images when hovering over bird species names with improved popup positioning, error handling, and performance.
-// @author       Your Name
+// @author       Isidro Vila Verde
 // @match        *://*/*
 // @grant        GM_xmlhttpRequest
 // @grant        GM_addStyle
