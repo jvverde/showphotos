@@ -802,18 +802,18 @@
     document.addEventListener('mouseover', debouncedHighlight);
 
     // Touch events for smartphones and tablets
-    let touchStartX, touchStartY;
+    let touchStartX2, touchStartY2;
 
     document.addEventListener('touchstart', (e) => {
         const touch = e.touches[0];
-        touchStartX = touch.clientX;
-        touchStartY = touch.clientY;
+        touchStartX2 = touch.clientX;
+        touchStartY2 = touch.clientY;
     });
 
     document.addEventListener('touchend', (e) => {
         const touch = e.changedTouches[0];
-        const deltaX = Math.abs(touch.clientX - touchStartX);
-        const deltaY = Math.abs(touch.clientY - touchStartY);
+        const deltaX = Math.abs(touch.clientX - touchStartX2);
+        const deltaY = Math.abs(touch.clientY - touchStartY2);
 
         // Only trigger if the touch movement is small (e.g., less than 10 pixels)
         if (deltaX < 10 && deltaY < 10) {
