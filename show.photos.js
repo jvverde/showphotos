@@ -51,6 +51,7 @@
             let mergedSpeciesList = [];
 
             for (const gistId of GISTID) { // Iterate over multiple Gist IDs
+                console.log(`Get names from gist ${gistId}`);
                 const gistUrl = `https://api.github.com/gists/${gistId}`;
                 try {
                     const gistData = await gmFetch(gistUrl); // Reuse gmFetch function
@@ -220,8 +221,8 @@
                     nodesToReplace.push({ node, replacedText });
                 }
             }
-
-            // Efficient DOM updates
+            console.log(`Found ${nodesToReplace.length} occurencies`)
+            // DOM updates
             pauseObserver();
             nodesToReplace.forEach(({ node, replacedText }) => {
                 const wrapper = document.createElement("span");
@@ -490,8 +491,8 @@
 
     // Navigate between images
     function navigate(direction) {
-        console.log(`Navigating to image index: ${currentIndex + direction}`);
         currentIndex = Math.max(0, Math.min(currentImages.length - 1, currentIndex + direction));
+        console.log(`Navigating to image index: ${currentIndex}`);
         updateImage();
         updateNavigationButtons();
     }
