@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bird Species Image Preview
 // @namespace    http://tampermonkey.net/
-// @version      3.1.2
+// @version      3.1.3
 // @description  Show Flickr images when hovering over bird species names (IOC nomenclature) on a webpage.
 // @author       Isidro Vila Verde
 // @match        *://*/*
@@ -18,6 +18,9 @@
 
 (function () {
     'use strict';
+
+    // Generate a random postfix for IDs to avoid conflicts
+    const randomPostfix = `_${Math.random().toString(36).substring(2, 9)}`; // e.g., "_a1b2c3d"
 
     // Constants and Configurations
     const FLICKR_API_KEY = 'c161f42fac23abc42328d8abd9f14fc5';
@@ -157,8 +160,8 @@
                 background: rgba(0, 0, 0, 0.8);
             }
 
-            #prev-button { left: 10px; }
-            #next-button { right: 10px; }
+            #prev-button${randomPostfix} { left: 10px; }
+            #next-button${randomPostfix} { right: 10px; }
 
             .dismiss-button {
                 display: block;
@@ -361,7 +364,7 @@
     function initializePopup() {
         console.log('Initializing popup.');
         const popup = document.createElement('div');
-        popup.id = 'bird-popup';
+        popup.id = `bird-popup${randomPostfix}`; // Add random postfix to ID
         popup.className = 'bird-popup';
         popup.setAttribute('role', 'dialog');
         popup.setAttribute('aria-labelledby', 'popup-title');
@@ -379,7 +382,7 @@
         currentImages = imageData;
         currentIndex = 0;
 
-        let popup = document.getElementById('bird-popup');
+        let popup = document.getElementById(`bird-popup${randomPostfix}`); // Add random postfix to ID
         if (!popup) {
             popup = initializePopup();
         }
@@ -389,14 +392,14 @@
 
         pauseObserver();
         popup.innerHTML = `
-            <button class="nav-button" id="prev-button">&lsaquo;</button>
+            <button class="nav-button" id="prev-button${randomPostfix}">&lsaquo;</button>
             <img src="${currentImages[currentIndex].url}" alt="Bird Image" />
-            <button class="nav-button" id="next-button">&rsaquo;</button>
+            <button class="nav-button" id="next-button${randomPostfix}">&rsaquo;</button>
             <div class="photo-info">
                 <strong>${currentImages[currentIndex].title}</strong> by ${currentImages[currentIndex].author || "Loading author..."}
             </div>
             <a href="${currentImages[currentIndex].flickrPage}" target="_blank">View on Flickr</a>
-            <button class="dismiss-button" id="dismiss-button">Close</button>
+            <button class="dismiss-button" id="dismiss-button${randomPostfix}">Close</button>
         `;
         resumeObserver();
 
@@ -454,14 +457,13 @@
     }
 
     // Setup navigation buttons
-    // Setup navigation buttons and swipe events
     function setupNavigation(popup) {
-        console.log('Setting up navigation buttons and swipe events.');
+        console.log('Setting up navigation buttons.');
 
         // Button event listeners
-        document.getElementById('prev-button').addEventListener('click', () => navigate(-1));
-        document.getElementById('next-button').addEventListener('click', () => navigate(1));
-        document.getElementById('dismiss-button').addEventListener('click', hidePopup);
+        document.getElementById(`prev-button${randomPostfix}`).addEventListener('click', () => navigate(-1));
+        document.getElementById(`next-button${randomPostfix}`).addEventListener('click', () => navigate(1));
+        document.getElementById(`dismiss-button${randomPostfix}`).addEventListener('click', hidePopup);
 
         // Keyboard event listeners
         if (!isKeydownListenerAdded) {
@@ -478,67 +480,6 @@
             });
             isKeydownListenerAdded = true;
         }
-
-        // Touch event listeners for swipe gestures
-        popup.addEventListener('touchstart', handleTouchStart, false);
-        popup.addEventListener('touchmove', handleTouchMove, false);
-        popup.addEventListener('touchend', handleTouchEnd, false);
-    }
-
-    // Variables to track touch positions
-    let touchStartX = null;
-    let touchStartY = null;
-    // Handle touch start event
-    function handleTouchStart(event) {
-        const firstTouch = event.touches[0];
-        touchStartX = firstTouch.clientX;
-        touchStartY = firstTouch.clientY;
-    }
-
-    // Handle touch move event
-    function handleTouchMove(event) {
-        if (!touchStartX || !touchStartY) return;
-
-        const touchEndX = event.touches[0].clientX;
-        const touchEndY = event.touches[0].clientY;
-
-        const deltaX = touchEndX - touchStartX;
-        const deltaY = touchEndY - touchStartY;
-
-        // Determine if the movement is primarily horizontal
-        if (Math.abs(deltaX) > Math.abs(deltaY)) {
-            // Prevent vertical scrolling during horizontal swipe
-            event.preventDefault();
-        }
-    }
-
-    // Handle touch end event
-    function handleTouchEnd(event) {
-        if (!touchStartX || !touchStartY) return;
-
-        const touchEndX = event.changedTouches[0].clientX;
-        const touchEndY = event.changedTouches[0].clientY;
-
-        const deltaX = touchEndX - touchStartX;
-        const deltaY = touchEndY - touchStartY;
-
-        // Define a threshold for swipe detection (e.g., 50 pixels)
-        const swipeThreshold = 50;
-
-        // Check if the swipe is horizontal and exceeds the threshold
-        if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > swipeThreshold) {
-            if (deltaX > 0) {
-                // Swipe right -> navigate to the previous photo
-                navigate(-1);
-            } else {
-                // Swipe left -> navigate to the next photo
-                navigate(1);
-            }
-        }
-
-        // Reset touch coordinates
-        touchStartX = null;
-        touchStartY = null;
     }
 
     // Navigate between images
@@ -552,7 +493,7 @@
     // Update displayed image and info
     function updateImage() {
         console.log('Updating displayed image.');
-        const popup = document.getElementById('bird-popup');
+        const popup = document.getElementById(`bird-popup${randomPostfix}`);
         if (popup) {
             pauseObserver();
             popup.querySelector('img').src = currentImages[currentIndex].url;
@@ -567,8 +508,8 @@
     // Update navigation buttons visibility
     function updateNavigationButtons() {
         console.log('Updating navigation buttons visibility.');
-        const prevButton = document.getElementById('prev-button');
-        const nextButton = document.getElementById('next-button');
+        const prevButton = document.getElementById(`prev-button${randomPostfix}`);
+        const nextButton = document.getElementById(`next-button${randomPostfix}`);
         if (prevButton) prevButton.style.display = currentIndex > 0 ? 'block' : 'none';
         if (nextButton) nextButton.style.display = currentIndex < currentImages.length - 1 ? 'block' : 'none';
     }
@@ -577,7 +518,7 @@
     function hidePopup() {
         console.log('Hiding popup.');
         pauseObserver();
-        const popup = document.getElementById('bird-popup');
+        const popup = document.getElementById(`bird-popup${randomPostfix}`);
         if (popup) {
             popup.style.display = 'none';
             popupVisible = false;
