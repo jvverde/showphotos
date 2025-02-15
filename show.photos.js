@@ -2,7 +2,7 @@
 // @name         Bird Species Image Preview
 // @namespace    http://tampermonkey.net/
 // @version      3.1
-// @description  Show Flickr images when hovering over bird species names with improved popup positioning, error handling, and performance.
+// @description  Show Flickr images when hovering over bird species names (IOC nomenclature) on a webpage.
 // @author       Isidro Vila Verde
 // @match        *://*/*
 // @grant        GM_xmlhttpRequest
@@ -10,6 +10,7 @@
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @connect      api.flickr.com
+// @connect      api.github.com
 // @connect      flickr.com
 // @connect      live.staticflickr.com
 // @run-at       document-end
@@ -19,10 +20,10 @@
     'use strict';
 
     // Constants and Configurations
-    const FLICKR_API_KEY = GM_getValue('flickrApiKey', '');
-    const speciesList = GM_getValue('speciesList', []);
-    const API_CALL_DELAY = 100; // 100 milliseconds delay between API calls
+    const FLICKR_API_KEY = GM_getValue('flickrApiKey', 'c161f42fac23abc42328d8abd9f14fc5');
+    const API_CALL_DELAY = 300; // 300 milliseconds delay between API calls
     const DEBOUNCE_DELAY = 300; // Debounce delay for mouseover events
+    let speciesList = GM_getValue('speciesList', []);
 
     // State Variables
     let currentIndex = 0;
@@ -199,9 +200,52 @@
         return isValid;
     }
 
+    // Function to load, merge, sort, and deduplicate species lists from Gist files
+    function loadAndMergeSpeciesLists(gistData) {
+        const mergedList = [];
+
+        // Iterate over all files in the Gist
+        for (const file of Object.values(gistData.files)) {
+            // Check if the file name matches 'birdnames'
+            if (file.filename.includes('birdnames')) {
+                try {
+                    // Parse the file content as JSON and add to the merged list
+                    const content = JSON.parse(file.content);
+                    if (Array.isArray(content)) {
+                        mergedList.push(...content);
+                    } else {
+                        console.warn(`File ${file.filename} does not contain a valid array.`);
+                    }
+                } catch (error) {
+                    console.error(`Error parsing file ${file.filename}:`, error);
+                }
+            }
+        }
+
+        // Sort and remove duplicates
+        const uniqueSortedList = [...new Set(mergedList)].sort((a, b) => a.localeCompare(b));
+        console.log(`Loaded a list of ${uniqueSortedList.length} names`);
+
+        return uniqueSortedList;
+    }
+
     // Initialize the script
-    function initializeScript() {
+    async function initializeScript() {
         console.log('Initializing script.');
+        // Try to load speciesList from a GitHub Gist
+        if (speciesList.length === 0) {
+            const gistUrl = 'https://api.github.com/gists/70598ae6bef6da21ade780c12d907452'; // Replace with your Gist ID
+            try {
+                const gistData = await gmFetch(gistUrl); // Reuse gmFetch function
+                speciesList = loadAndMergeSpeciesLists(gistData); // Load, merge, sort, and deduplicate
+                console.log(`Species list loaded and processed ${speciesList.length} unique names`);
+
+                // Cache the speciesList
+                GM_setValue('speciesList', speciesList);
+            } catch (error) {
+                console.warn('Failed to load or process species list:', error);
+            }
+        }
         if (!FLICKR_API_KEY || speciesList.length === 0) {
             console.warn('API Key or species list missing. Showing settings dialog.');
             showSettingsDialog();
@@ -226,17 +270,39 @@
             .bird-popup {
                 position: absolute;
                 z-index: 10000;
-                background: white;
-                border: 1px solid black;
+                background: #121212; /* Dark background */
+                border: 1px solid #333; /* Dark border */
                 border-radius: 10px;
                 padding: 10px;
                 box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.5);
-                max-width: 900px;
+                max-width: 80vw;
                 display: none;
                 text-align: center;
                 transition: opacity 0.3s ease;
                 resize: both;
                 overflow: auto;
+                color: #ffffff; /* Light text color */
+            }
+
+            /* Ensure all child elements inherit the dark mode styles */
+            .bird-popup * {
+                color: inherit; /* Inherit light text color */
+                background-color: transparent; /* Transparent background for child elements */
+                border-color: #555; /* Dark border for child elements */
+            }
+
+            /* Style buttons for dark mode */
+            .bird-popup button {
+                background-color: #333; /* Dark background for buttons */
+                color: #ffffff; /* Light text color for buttons */
+                border: 1px solid #555; /* Dark border for buttons */
+                padding: 5px 10px;
+                border-radius: 5px;
+                cursor: pointer;
+            }
+
+            .bird-popup button:hover {
+                background-color: #444; /* Slightly lighter background for hovered buttons */
             }
 
             .bird-popup img {
@@ -436,8 +502,8 @@
                             reject(`Error parsing response: ${error}`);
                         }
                     } else {
-                        console.error(`Flickr API error: ${response.statusText}`);
-                        reject(`Flickr API error: ${response.statusText}`);
+                        console.error(`API error: ${response.statusText}`);
+                        reject(`API error: ${response.statusText}`);
                     }
                 },
                 onerror: function (error) {
@@ -565,12 +631,16 @@
     }
 
     // Setup navigation buttons
+    // Setup navigation buttons and swipe events
     function setupNavigation(popup) {
-        console.log('Setting up navigation buttons.');
+        console.log('Setting up navigation buttons and swipe events.');
+
+        // Button event listeners
         document.getElementById('prev-button').addEventListener('click', () => navigate(-1));
         document.getElementById('next-button').addEventListener('click', () => navigate(1));
         document.getElementById('dismiss-button').addEventListener('click', hidePopup);
 
+        // Keyboard event listeners
         if (!isKeydownListenerAdded) {
             document.addEventListener('keydown', function (e) {
                 if (popupVisible) {
@@ -585,6 +655,67 @@
             });
             isKeydownListenerAdded = true;
         }
+
+        // Touch event listeners for swipe gestures
+        popup.addEventListener('touchstart', handleTouchStart, false);
+        popup.addEventListener('touchmove', handleTouchMove, false);
+        popup.addEventListener('touchend', handleTouchEnd, false);
+    }
+
+    // Variables to track touch positions
+    let touchStartX = null;
+    let touchStartY = null;
+    // Handle touch start event
+    function handleTouchStart(event) {
+        const firstTouch = event.touches[0];
+        touchStartX = firstTouch.clientX;
+        touchStartY = firstTouch.clientY;
+    }
+
+    // Handle touch move event
+    function handleTouchMove(event) {
+        if (!touchStartX || !touchStartY) return;
+
+        const touchEndX = event.touches[0].clientX;
+        const touchEndY = event.touches[0].clientY;
+
+        const deltaX = touchEndX - touchStartX;
+        const deltaY = touchEndY - touchStartY;
+
+        // Determine if the movement is primarily horizontal
+        if (Math.abs(deltaX) > Math.abs(deltaY)) {
+            // Prevent vertical scrolling during horizontal swipe
+            event.preventDefault();
+        }
+    }
+
+    // Handle touch end event
+    function handleTouchEnd(event) {
+        if (!touchStartX || !touchStartY) return;
+
+        const touchEndX = event.changedTouches[0].clientX;
+        const touchEndY = event.changedTouches[0].clientY;
+
+        const deltaX = touchEndX - touchStartX;
+        const deltaY = touchEndY - touchStartY;
+
+        // Define a threshold for swipe detection (e.g., 50 pixels)
+        const swipeThreshold = 50;
+
+        // Check if the swipe is horizontal and exceeds the threshold
+        if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > swipeThreshold) {
+            if (deltaX > 0) {
+                // Swipe right -> navigate to the previous photo
+                navigate(-1);
+            } else {
+                // Swipe left -> navigate to the next photo
+                navigate(1);
+            }
+        }
+
+        // Reset touch coordinates
+        touchStartX = null;
+        touchStartY = null;
     }
 
     // Navigate between images
@@ -631,7 +762,7 @@
         resumeObserver();
     }
 
-    // Debounce mouseover events
+    // Debounce function to limit the rate of execution
     function debounce(func, delay) {
         let timeout;
         return function (...args) {
@@ -640,12 +771,53 @@
         };
     }
 
-    // Attach debounced mouseover event listener
-    document.addEventListener('mouseover', debounce(function (e) {
-        if (e.target.classList.contains('bird-highlight')) {
-            const species = e.target.textContent;
-            console.log(`Mouseover detected on species: ${species}`);
-            fetchFlickrImages(species, (imageData) => showPopup(e, imageData));
+    // Function to handle species highlight (for both mouse and touch events)
+    function handleSpeciesHighlight(event) {
+        let target;
+        if (event.type === 'touchstart' || event.type === 'touchend') {
+            // For touch events, use the first touch point
+            target = event.touches ? event.touches[0].target : event.target;
+        } else {
+            // For mouse events, use the event target directly
+            target = event.target;
         }
-    }, DEBOUNCE_DELAY));
+
+        // Check if the target has the 'bird-highlight' class
+        if (target.classList.contains('bird-highlight')) {
+            const species = target.textContent;
+            console.log(`Highlight detected on species: ${species}`);
+            fetchFlickrImages(species, (imageData) => showPopup(event, imageData));
+
+            // Prevent default behavior for touchend events on bird-highlight elements
+            if (event.type === 'touchend') {
+                event.preventDefault();
+            }
+        }
+    }
+
+    // Attach event listeners for both mouse and touch events
+    const debouncedHighlight = debounce(handleSpeciesHighlight, DEBOUNCE_DELAY);
+
+    // Mouse events for desktop
+    document.addEventListener('mouseover', debouncedHighlight);
+
+    // Touch events for smartphones and tablets
+    let touchStartX, touchStartY;
+
+    document.addEventListener('touchstart', (e) => {
+        const touch = e.touches[0];
+        touchStartX = touch.clientX;
+        touchStartY = touch.clientY;
+    });
+
+    document.addEventListener('touchend', (e) => {
+        const touch = e.changedTouches[0];
+        const deltaX = Math.abs(touch.clientX - touchStartX);
+        const deltaY = Math.abs(touch.clientY - touchStartY);
+
+        // Only trigger if the touch movement is small (e.g., less than 10 pixels)
+        if (deltaX < 10 && deltaY < 10) {
+            debouncedHighlight(e);
+        }
+    });
 })();
