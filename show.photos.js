@@ -30,6 +30,11 @@
     const DEBOUNCE_DELAY = 300; // Debounce delay for mouseover events
     const highlightColor = GM_getValue('highlightColor', 'yellow')
     let speciesList = GM_getValue('speciesList', []);
+    // Default sort order
+    let currentSortOrder = GM_getValue('flickrSortOrder', 'interestingness-desc');
+    // Default search mode
+    let currentSearchMode = GM_getValue('flickrSearchMode', 'tags');
+
 
     // State Variables
     let currentIndex = 0;
@@ -456,7 +461,7 @@
         lastApiCallTime = Date.now();
 
         try {
-            const searchUrl = `https://www.flickr.com/services/rest/?method=flickr.photos.search&api_key=${FLICKR_API_KEY}&tags=${encodeURIComponent(species)}&sort=interestingness-desc&format=json&nojsoncallback=1&per_page=10`;
+            const searchUrl = `https://www.flickr.com/services/rest/?method=flickr.photos.search&api_key=${FLICKR_API_KEY}&${currentSearchMode}=${encodeURIComponent(species)}&sort=${currentSortOrder}&format=json&nojsoncallback=1&per_page=10`;
 
             console.log(`Fetching images for species: ${species}`);
             const searchResponse = await gmFetch(searchUrl);
@@ -608,6 +613,9 @@
     });
 
     /* ------------------------- This an an extra code to allow a user to configure some parameters ------------------------- */
+    /* ------------------------- We can live without the code bellow ------------------------- *
+
+    /* A lot of code just to allow user to pickup a color for hightligths */
     GM_addStyle(`
         #colorPickerContainer${randomPostfix} {
             position: fixed;
@@ -764,4 +772,57 @@
     // Add context menu option to open the color picker
     GM_registerMenuCommand('Change Highlight Color', openColorPicker);
 
+    /* Allow user to change of flickr should sort the results */
+    // Constants for sorting options
+    const SORT_OPTIONS = [
+        { value: 'date-posted-asc', label: 'Date Posted (Oldest First)' },
+        { value: 'date-posted-desc', label: 'Date Posted (Newest First)' },
+        { value: 'date-taken-asc', label: 'Date Taken (Oldest First)' },
+        { value: 'date-taken-desc', label: 'Date Taken (Newest First)' },
+        { value: 'interestingness-desc', label: 'Interestingness (Most First)' },
+        { value: 'interestingness-asc', label: 'Interestingness (Least First)' },
+        { value: 'relevance', label: 'Relevance' }
+    ];
+
+    // Constants for search modes
+    const SEARCH_MODES = [
+        { value: 'tags', label: 'Search by Tags' },
+        { value: 'text', label: 'Search by Text' }
+    ];
+
+    // Function to update sort order menu dynamically
+    function updateSortOrderMenu() {
+        let currentSortOrder = GM_getValue('flickrSortOrder', 'relevance');
+
+        SORT_OPTIONS.forEach(option => {
+            const isSelected = option.value === currentSortOrder;
+            const label = `${isSelected ? '✔ ' : ''}${option.label}`;
+
+            // Update the existing menu item or create a new one
+            GM_registerMenuCommand(label, () => {
+                GM_setValue('flickrSortOrder', option.value);
+                location.reload();
+            });
+        });
+    }
+
+    // Function to update search mode menu dynamically
+    function updateSearchModeMenu() {
+        let currentSearchMode = GM_getValue('flickrSearchMode', 'tags');
+
+        SEARCH_MODES.forEach(mode => {
+            const isSelected = mode.value === currentSearchMode;
+            const label = `${isSelected ? '✔ ' : ''}${mode.label}`;
+
+            // Update the existing menu item or create a new one
+            GM_registerMenuCommand(label, () => {
+                GM_setValue('flickrSearchMode', mode.value);
+                location.reload();
+            });
+        });
+    }
+
+    // Call the functions to register the menus
+    updateSortOrderMenu();
+    updateSearchModeMenu();
 })();
