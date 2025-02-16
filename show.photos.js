@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bird Species Image Preview
 // @namespace    http://tampermonkey.net/
-// @version      3.2.0
+// @version      3.2.1
 // @description  Show Flickr images when hovering over bird species names (IOC nomenclature) on a webpage.
 // @author       Isidro Vila Verde
 // @match        *://*/*
@@ -447,7 +447,7 @@
 
         pauseObserver();
         if (spaceBelow <= spaceAbove) {
-            const top = scrollY + 10;
+            const top = 10 + scrollY;
             popup.style.top = `${top}px`;
             popup.style.removeProperty('bottom');
         } else {
