@@ -28,6 +28,7 @@
     const GISTID = ['70598ae6bef6da21ade780c12d907452','d31217a5c802d1018893907df29d1d45'];
     const API_CALL_DELAY = 300; // 300 milliseconds delay between API calls
     const DEBOUNCE_DELAY = 300; // Debounce delay for mouseover events
+    const highlightColor = GM_getValue('highlightColor', 'yellow')
     let speciesList = GM_getValue('speciesList', []);
 
     // State Variables
@@ -147,7 +148,7 @@
             }
 
             .bird-highlight {
-                background-color: yellow;
+                background-color: ${highlightColor};
                 cursor: pointer;
             }
 
@@ -601,9 +602,185 @@
     processSpecies();
     add_style();
 
-    GM_registerMenuCommand("Clear Species List", function () {
+    GM_registerMenuCommand('Clear Species List', function () {
         GM_setValue('speciesList', []);
-        alert("Species list cleared. You should reload the page now");
+        alert('Species list cleared. You should reload the page now');
     });
 
+    /* ------------------------- This an an extra code to allow user to configure some parameters ------------------------- */
+    function openColorPicker() {
+        let picker = document.getElementById(`colorPickerContainer${randomPostfix}`);
+        if (!picker) {
+            picker = document.createElement('div');
+            picker.id = `colorPickerContainer${randomPostfix}`;
+            picker.innerHTML = `
+                <input type="color" id="highlightColorInput${randomPostfix}">
+                <button id="applyHighlightColor${randomPostfix}">Apply</button>
+            `;
+            document.body.appendChild(picker);
+
+            // Set default color
+            document.getElementById(`highlightColorInput${randomPostfix}`).value = GM_getValue('highlightColor', '#FFFF00');
+
+            // Apply event listener to button
+            document.getElementById(`applyHighlightColor${randomPostfix}`).addEventListener('click', () => {
+                const newColor = document.getElementById(`highlightColorInput${randomPostfix}`).value;
+                GM_setValue('highlightColor', newColor);
+                updateHighlightElements(newColor);
+                picker.remove(); // Remove picker after applying color
+            });
+        }
+    }
+
+    // Function to update all .bird-highlight elements dynamically
+    GM_addStyle(`
+        #colorPickerContainer${randomPostfix} {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #121212; /* Dark theme */
+            border: 1px solid #333;
+            border-radius: 10px;
+            padding: 15px;
+            z-index: 10001;
+            display: flex;
+            flex-direction: column; /* Column layout for input, button, and text */
+            justify-content: center;
+            align-items: center;
+            box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.5);
+            min-width: 35vw;
+            min-height: 20vh; /* More space for the dismiss button */
+            text-align: center;
+        }
+
+        #colorPickerContainer${randomPostfix} * {
+            color: #ffffff; /* Light text */
+            background-color: transparent;
+            border-color: #555;
+        }
+
+        #instructionText${randomPostfix} {
+            margin-bottom: 10px; /* Space between text and the picker */
+            font-size: 16px;
+            color: #dddddd; /* Slightly lighter text */
+            font-weight: normal;
+        }
+
+        #highlightColorInput${randomPostfix} {
+            width: 60%; /* Color picker occupies 60% of the container width */
+            height: 40px;
+            cursor: pointer;
+            margin-bottom: 10px; /* Space between picker & button */
+            border-radius: 5px;
+            padding: 5px;
+            box-sizing: border-box;
+        }
+
+        #applyHighlightColor${randomPostfix} {
+            padding: 10px 0;
+            background: #333;
+            color: #ffffff;
+            border: 1px solid #555;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.2s ease;
+        }
+
+        #applyHighlightColor${randomPostfix}:hover {
+            background: #444;
+        }
+
+        #dismissButton${randomPostfix} {
+            padding: 10px 0;
+            background: #e74c3c; /* Red background for dismiss */
+            color: #ffffff;
+            border: 1px solid #555;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.2s ease;
+            margin-top: 10px;
+        }
+
+        #dismissButton${randomPostfix}:hover {
+            background: #c0392b;
+        }
+    `);
+
+    function openColorPicker () {
+        let picker = document.getElementById(`colorPickerContainer${randomPostfix}`);
+        if (!picker) {
+            picker = document.createElement('div');
+            picker.id = `colorPickerContainer${randomPostfix}`;
+            picker.innerHTML = `
+                <div id="instructionText${randomPostfix}">
+                    Select a color to highlight the bird species on the page, then click "Apply".
+                </div>
+                <div style="display:flex; flex-direction: row; width:100%; margin:10px">
+                    <input type='color' id="highlightColorInput${randomPostfix}" style="height:75pt;flex-grow:3">
+                    <div style="display:flex; flex-direction: column; flex-grow:1; margin:10px">
+                        <button id="applyHighlightColor${randomPostfix}">Apply</button>
+                        <button id="dismissButton${randomPostfix}">Dismiss</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(picker);
+
+            // Set default color
+            document.getElementById(`highlightColorInput${randomPostfix}`).value = GM_getValue('highlightColor', '#FFFF00');
+
+            // Apply event listener to button
+            document.getElementById(`applyHighlightColor${randomPostfix}`).addEventListener('click', () => {
+                const newColor = document.getElementById(`highlightColorInput${randomPostfix}`).value;
+                GM_setValue('highlightColor', newColor);
+                updateHighlightElements(newColor);
+                removePicker(); // Remove picker after applying color
+            });
+
+            // Dismiss event listener
+            document.getElementById(`dismissButton${randomPostfix}`).addEventListener('click', () => {
+                removePicker(); // Close the picker on Dismiss
+            });
+        }
+
+        // Function to update all .bird-highlight elements dynamically
+        function updateHighlightElements(color) {
+            document.querySelectorAll('.bird-highlight').forEach(el => {
+                el.style.backgroundColor = color;
+            });
+        }
+
+        // Close dialog when clicked outside
+        function closeOnClickOutside(e) {
+            if (!picker.contains(e.target)) {
+                removePicker(); // Close picker when clicking outside
+            }
+        }
+
+        // Close dialog when Escape key is pressed
+        function closeOnEscape(e) {
+            if (e.key === 'Escape') {
+                removePicker(); // Close picker when Escape is pressed
+            }
+        }
+
+        // Attach event listeners
+        document.addEventListener('click', closeOnClickOutside);
+        document.addEventListener('keydown', closeOnEscape);
+
+        // Function to remove picker and clean up listeners
+        function removePicker() {
+            // Remove event listeners before removing picker
+            document.removeEventListener('click', closeOnClickOutside);
+            document.removeEventListener('keydown', closeOnEscape);
+
+            picker.remove(); // Remove the picker from DOM
+        }
+
+    }
+
+    // Add context menu option to open the color picker
+    GM_registerMenuCommand('Change Highlight Color', openColorPicker);
 })();
