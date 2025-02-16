@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bird Species Image Preview
 // @namespace    http://tampermonkey.net/
-// @version      3.2.2
+// @version      3.2.3
 // @description  Show Flickr images when hovering over bird species names (IOC nomenclature) on a webpage.
 // @author       Isidro Vila Verde
 // @match        *://*/*
@@ -196,177 +196,6 @@
         `);
     }
 
-    // --- Core Functionality ---
-
-    // Process species list and highlight species in text
-    function processSpecies() {
-        console.log('Processing species list.');
-        // Find and highlight species in text
-        function findSpeciesInText(root) {
-            const treeWalker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-            const nodesToReplace = [];
-
-            const speciesSet = new Set(speciesList); // Fast lookup
-            const speciesRegex = new RegExp(`\\b(${[...speciesSet].join("|")})\\b`, "gi"); // Single regex
-
-            let node;
-            while ((node = treeWalker.nextNode())) {
-                let text = node.nodeValue;
-                let replacedText = text.replace(speciesRegex, (match) => {
-                    console.log(`Found species: ${match}`);
-                    return `<span class="bird-highlight">${match}</span>`; // Inline replacement
-                });
-
-                if (text !== replacedText) {
-                    nodesToReplace.push({ node, replacedText });
-                }
-            }
-            console.log(`Found ${nodesToReplace.length} occurencies`)
-            // DOM updates
-            pauseObserver();
-            nodesToReplace.forEach(({ node, replacedText }) => {
-                const wrapper = document.createElement("span");
-                wrapper.innerHTML = replacedText;
-                node.parentNode.replaceChild(wrapper, node);
-            });
-            resumeObserver();
-        }
-
-        findSpeciesInText(document.body);
-
-        observer = new MutationObserver((mutations) => {
-            if (!observerActive) return;
-
-            mutations.forEach((mutation) => {
-                mutation.addedNodes.forEach((node) => {
-                    if (node.nodeType === 1) {
-                        findSpeciesInText(node);
-                    }
-                });
-            });
-        });
-
-        observerActive = true;
-        observer.observe(document.body, {
-            childList: true,
-            subtree: true
-        });
-    }
-
-    // Pause the observer
-    function pauseObserver() {
-        if (observer && observerActive) {
-            console.log('Pausing observer.');
-            observer.disconnect();
-            observerActive = false;
-        }
-    }
-
-    // Resume the observer
-    function resumeObserver() {
-        if (observer && !observerActive) {
-            console.log('Resuming observer.');
-            observer.observe(document.body, {
-                childList: true,
-                subtree: true
-            });
-            observerActive = true;
-        }
-    }
-
-    // Fetch images from Flickr API with rate limiting
-    async function fetchFlickrImages(species, callback) {
-        const now = Date.now();
-        if (now - lastApiCallTime < API_CALL_DELAY) {
-            console.log('Rate limiting API calls. Waiting...');
-            await new Promise(resolve => setTimeout(resolve, API_CALL_DELAY - (now - lastApiCallTime)));
-        }
-        lastApiCallTime = Date.now();
-
-        try {
-            const searchUrl = `https://www.flickr.com/services/rest/?method=flickr.photos.search&api_key=${FLICKR_API_KEY}&tags=${encodeURIComponent(species)}&sort=interestingness-desc&format=json&nojsoncallback=1&per_page=10`;
-
-            console.log(`Fetching images for species: ${species}`);
-            const searchResponse = await gmFetch(searchUrl);
-            if (!searchResponse.photos || searchResponse.photos.photo.length === 0) {
-                console.warn(`No images found for species: ${species}`);
-                callback([]);
-                return;
-            }
-
-            const photos = searchResponse.photos.photo.slice(0, 10);
-            const images = photos.map(photo => ({
-                url: `https://farm${photo.farm}.staticflickr.com/${photo.server}/${photo.id}_${photo.secret}_c.jpg`,
-                title: photo.title,
-                author: null,
-                flickrPage: `https://www.flickr.com/photos/${photo.owner}/${photo.id}`
-            }));
-
-            callback(images);
-
-            photos.forEach(async (photo, index) => {
-                const ownerName = await fetchOwnerName(photo.owner);
-                images[index].author = ownerName;
-
-                if (currentIndex === index) {
-                    updateImage();
-                }
-            });
-        } catch (error) {
-            console.error(`Error fetching images for ${species}:`, error);
-            callback([]);
-        }
-    }
-
-    // Helper function to fetch data using GM_xmlhttpRequest
-    function gmFetch(url) {
-        return new Promise((resolve, reject) => {
-            GM_xmlhttpRequest({
-                method: 'GET',
-                url: url,
-                headers: { 'Origin': 'null' },
-                anonymous: true,
-                onload: function (response) {
-                    if (response.status >= 200 && response.status < 300) {
-                        try {
-                            resolve(JSON.parse(response.responseText));
-                        } catch (error) {
-                            console.error('Error parsing response:', error);
-                            reject(`Error parsing response: ${error}`);
-                        }
-                    } else {
-                        console.error(`API error: ${response.statusText}`);
-                        reject(`API error: ${response.statusText}`);
-                    }
-                },
-                onerror: function (error) {
-                    console.error('Request failed:', error);
-                    reject(`Request failed: ${error}`);
-                }
-            });
-        });
-    }
-
-    // Fetch the owner's real name (or username if real name is missing)
-    async function fetchOwnerName(ownerId) {
-        try {
-            const ownerUrl = `https://www.flickr.com/services/rest/?method=flickr.people.getInfo&api_key=${FLICKR_API_KEY}&user_id=${ownerId}&format=json&nojsoncallback=1`;
-            console.log(`Fetching owner info for ID: ${ownerId}`);
-            const ownerData = await gmFetch(ownerUrl);
-            const person = ownerData.person;
-            if (person) {
-                return (person.realname ? person.realname._content : null)
-                    || (person.username ? person.username._content : null)
-                    || person.path_alias
-                    || "Unknown";
-            }
-            return "Unknown";
-        } catch (error) {
-            console.error(`Error fetching owner info:`, error);
-            return "Unknown";
-        }
-    }
-
     // Initialize popup element
     function initializePopup() {
         console.log('Initializing popup.');
@@ -538,13 +367,175 @@
         resumeObserver();
     }
 
-    // Debounce function to limit the rate of execution
-    function debounce(func, delay) {
-        let timeout;
-        return function (...args) {
-            clearTimeout(timeout);
-            timeout = setTimeout(() => func.apply(this, args), delay);
-        };
+    // --- Core Functionality ---
+
+    // Process species list and highlight species in text
+    function processSpecies() {
+        console.log('Processing species list.');
+        // Find and highlight species in text
+        function findSpeciesInText(root) {
+            const treeWalker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+            const nodesToReplace = [];
+
+            const speciesSet = new Set(speciesList); // Fast lookup
+            const speciesRegex = new RegExp(`\\b(${[...speciesSet].join("|")})\\b`, "gi"); // Single regex
+
+            let node;
+            while ((node = treeWalker.nextNode())) {
+                let text = node.nodeValue;
+                let replacedText = text.replace(speciesRegex, (match) => {
+                    console.log(`Found species: ${match}`);
+                    return `<span class="bird-highlight">${match}</span>`; // Inline replacement
+                });
+
+                if (text !== replacedText) {
+                    nodesToReplace.push({ node, replacedText });
+                }
+            }
+            console.log(`Found ${nodesToReplace.length} occurencies`)
+            // DOM updates
+            pauseObserver();
+            nodesToReplace.forEach(({ node, replacedText }) => {
+                const wrapper = document.createElement("span");
+                wrapper.innerHTML = replacedText;
+                node.parentNode.replaceChild(wrapper, node);
+            });
+            resumeObserver();
+        }
+
+        findSpeciesInText(document.body);
+
+        observer = new MutationObserver((mutations) => {
+            if (!observerActive) return;
+
+            mutations.forEach((mutation) => {
+                mutation.addedNodes.forEach((node) => {
+                    if (node.nodeType === 1) {
+                        findSpeciesInText(node);
+                    }
+                });
+            });
+        });
+
+        observerActive = true;
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+    }
+
+    // Pause the observer
+    function pauseObserver() {
+        if (observer && observerActive) {
+            console.log('Pausing observer.');
+            observer.disconnect();
+            observerActive = false;
+        }
+    }
+
+    // Resume the observer
+    function resumeObserver() {
+        if (observer && !observerActive) {
+            console.log('Resuming observer.');
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true
+            });
+            observerActive = true;
+        }
+    }
+
+    // Fetch images from Flickr API with rate limiting
+    async function fetchFlickrImages(species, callback) {
+        const now = Date.now();
+        if (now - lastApiCallTime < API_CALL_DELAY) {
+            console.log('Rate limiting API calls. Waiting...');
+            await new Promise(resolve => setTimeout(resolve, API_CALL_DELAY - (now - lastApiCallTime)));
+        }
+        lastApiCallTime = Date.now();
+
+        try {
+            const searchUrl = `https://www.flickr.com/services/rest/?method=flickr.photos.search&api_key=${FLICKR_API_KEY}&tags=${encodeURIComponent(species)}&sort=interestingness-desc&format=json&nojsoncallback=1&per_page=10`;
+
+            console.log(`Fetching images for species: ${species}`);
+            const searchResponse = await gmFetch(searchUrl);
+            if (!searchResponse.photos || searchResponse.photos.photo.length === 0) {
+                console.warn(`No images found for species: ${species}`);
+                callback([]);
+                return;
+            }
+
+            const photos = searchResponse.photos.photo.slice(0, 10);
+            const images = photos.map(photo => ({
+                url: `https://farm${photo.farm}.staticflickr.com/${photo.server}/${photo.id}_${photo.secret}_c.jpg`,
+                title: photo.title,
+                author: null,
+                flickrPage: `https://www.flickr.com/photos/${photo.owner}/${photo.id}`
+            }));
+
+            callback(images);
+
+            photos.forEach(async (photo, index) => {
+                const ownerName = await fetchOwnerName(photo.owner);
+                images[index].author = ownerName;
+
+                if (currentIndex === index) {
+                    updateImage();
+                }
+            });
+        } catch (error) {
+            console.error(`Error fetching images for ${species}:`, error);
+            callback([]);
+        }
+    }
+
+    // Helper function to fetch data using GM_xmlhttpRequest
+    function gmFetch(url) {
+        return new Promise((resolve, reject) => {
+            GM_xmlhttpRequest({
+                method: 'GET',
+                url: url,
+                headers: { 'Origin': 'null' },
+                anonymous: true,
+                onload: function (response) {
+                    if (response.status >= 200 && response.status < 300) {
+                        try {
+                            resolve(JSON.parse(response.responseText));
+                        } catch (error) {
+                            console.error('Error parsing response:', error);
+                            reject(`Error parsing response: ${error}`);
+                        }
+                    } else {
+                        console.error(`API error: ${response.statusText}`);
+                        reject(`API error: ${response.statusText}`);
+                    }
+                },
+                onerror: function (error) {
+                    console.error('Request failed:', error);
+                    reject(`Request failed: ${error}`);
+                }
+            });
+        });
+    }
+
+    // Fetch the owner's real name (or username if real name is missing)
+    async function fetchOwnerName(ownerId) {
+        try {
+            const ownerUrl = `https://www.flickr.com/services/rest/?method=flickr.people.getInfo&api_key=${FLICKR_API_KEY}&user_id=${ownerId}&format=json&nojsoncallback=1`;
+            console.log(`Fetching owner info for ID: ${ownerId}`);
+            const ownerData = await gmFetch(ownerUrl);
+            const person = ownerData.person;
+            if (person) {
+                return (person.realname ? person.realname._content : null)
+                    || (person.username ? person.username._content : null)
+                    || person.path_alias
+                    || "Unknown";
+            }
+            return "Unknown";
+        } catch (error) {
+            console.error(`Error fetching owner info:`, error);
+            return "Unknown";
+        }
     }
 
     // Function to handle species highlight (for both mouse and touch events)
@@ -569,6 +560,15 @@
                 event.preventDefault();
             }
         }
+    }
+
+    // Debounce function to limit the rate of execution
+    function debounce(func, delay) {
+        let timeout;
+        return function (...args) {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(this, args), delay);
+        };
     }
 
     // Attach event listeners for both mouse and touch events
