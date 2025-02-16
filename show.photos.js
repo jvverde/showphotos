@@ -430,36 +430,41 @@
     // Position popup relative to viewport with scroll handling
     function positionPopup(popup) {
         console.log('Positioning popup.');
-        const popupWidth = popup.offsetWidth;
-        const popupHeight = popup.offsetHeight;
+        // const popupWidth = popup.offsetWidth;
+        // const popupHeight = popup.offsetHeight;
         const viewportWidth = window.innerWidth;
         const viewportHeight = window.innerHeight;
-        const scrollY = window.scrollY || window.pageYOffset;
+        const scrollY = window.scrollY || window.pageYOffset || document.documentElement.scrollTop;
 
         const cursorX = cursorPosition.x;
         const cursorY = cursorPosition.y + scrollY;
 
-        const spaceBelow = viewportHeight + scrollY - (cursorY + popupHeight);
-        const spaceAbove = cursorY - scrollY - popupHeight;
+        const spaceBelow = viewportHeight + scrollY - cursorY;
+        const spaceAbove = cursorY - scrollY;
 
-        let top;
-        if (spaceBelow >= 0) {
-            top = cursorY + 10;
-        } else if (spaceAbove >= 0) {
-            top = cursorY - popupHeight - 10;
-        } else {
-            top = viewportHeight + scrollY - popupHeight - 10;
-        }
-
-        let left = cursorX + 10;
-        if (left + popupWidth > viewportWidth) {
-            left = cursorX - popupWidth - 10;
-        }
-        left = Math.max(10, Math.min(left, viewportWidth - popupWidth - 10));
+        const spaceLeft = cursorX;
+        const spaceRigth = viewportWidth - cursorX;
 
         pauseObserver();
-        popup.style.top = `${top}px`;
-        popup.style.left = `${left}px`;
+        if (spaceBelow <= spaceAbove) {
+            const top = scrollY + 10;
+            popup.style.top = `${top}px`;
+            popup.style.removeProperty('bottom');
+        } else {
+            const bottom = 10 - scrollY;
+            popup.style.bottom = `${bottom}px`;
+            popup.style.removeProperty('top');
+        }
+
+        if (spaceRigth <= spaceLeft) {
+            const left = 10;
+            popup.style.left = `${left}px`;
+            if (popup.style.right) popup.style.removeProperty('right');
+        } else {
+            const right = 10;
+            popup.style.right = `${right}px`;
+            popup.style.removeProperty('left');
+        }
         resumeObserver();
     }
 
