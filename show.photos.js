@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bird Species Image Preview
 // @namespace    http://tampermonkey.net/
-// @version      3.2.6
+// @version      3.2.7
 // @description  Show Flickr images when hovering over bird species names (IOC nomenclature) on a webpage.
 // @author       Isidro Vila Verde
 // @match        *://*/*
@@ -327,6 +327,67 @@
             });
             isKeydownListenerAdded = true;
         }
+
+        // Touch event listeners for swipe gestures
+        popup.addEventListener('touchstart', handleTouchStart, false);
+        popup.addEventListener('touchmove', handleTouchMove, false);
+        popup.addEventListener('touchend', handleTouchEnd, false);
+    }
+
+    // Variables to track touch positions
+    let touchStartX = null;
+    let touchStartY = null;
+    // Handle touch start event
+    function handleTouchStart(event) {
+        const firstTouch = event.touches[0];
+        touchStartX = firstTouch.clientX;
+        touchStartY = firstTouch.clientY;
+    }
+
+    // Handle touch move event
+    function handleTouchMove(event) {
+        if (!touchStartX || !touchStartY) return;
+
+        const touchEndX = event.touches[0].clientX;
+        const touchEndY = event.touches[0].clientY;
+
+        const deltaX = touchEndX - touchStartX;
+        const deltaY = touchEndY - touchStartY;
+
+        // Determine if the movement is primarily horizontal
+        if (Math.abs(deltaX) > Math.abs(deltaY)) {
+            // Prevent vertical scrolling during horizontal swipe
+            event.preventDefault();
+        }
+    }
+
+    // Handle touch end event
+    function handleTouchEnd(event) {
+        if (!touchStartX || !touchStartY) return;
+
+        const touchEndX = event.changedTouches[0].clientX;
+        const touchEndY = event.changedTouches[0].clientY;
+
+        const deltaX = touchEndX - touchStartX;
+        const deltaY = touchEndY - touchStartY;
+
+        // Define a threshold for swipe detection (e.g., 50 pixels)
+        const swipeThreshold = 50;
+
+        // Check if the swipe is horizontal and exceeds the threshold
+        if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > swipeThreshold) {
+            if (deltaX > 0) {
+                // Swipe right -> navigate to the previous photo
+                navigate(-1);
+            } else {
+                // Swipe left -> navigate to the next photo
+                navigate(1);
+            }
+        }
+
+        // Reset touch coordinates
+        touchStartX = null;
+        touchStartY = null;
     }
 
     // Navigate between images
