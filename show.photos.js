@@ -25,7 +25,7 @@
 
     // Constants and Configurations
     const FLICKR_API_KEY = 'c161f42fac23abc42328d8abd9f14fc5';
-    const GISTID = ['70598ae6bef6da21ade780c12d907452','d31217a5c802d1018893907df29d1d45'];
+    const GISTID = ['70598ae6bef6da21ade780c12d907452','d31217a5c802d1018893907df29d1d45','01ce512accba1ebd38be9f6b301e437c'];
     const API_CALL_DELAY = 300; // 300 milliseconds delay between API calls
     const DEBOUNCE_DELAY = 300; // Debounce delay for mouseover events
     const highlightColor = GM_getValue('highlightColor', 'yellow')
